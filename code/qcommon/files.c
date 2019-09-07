@@ -2491,19 +2491,22 @@ void FS_GetModDescription( const char *modDir, char *description, int descriptio
 	int				nDescLen;
 	FILE			*file;
 
-	Com_sprintf( descPath, sizeof ( descPath ), "%s/description.txt", modDir );
+	Com_sprintf( descPath, sizeof ( descPath ), "%s%cdescription.txt", modDir, PATH_SEP );
 	nDescLen = FS_SV_FOpenFileRead( descPath, &descHandle );
 
-	if ( nDescLen > 0 && descHandle ) {
+	if ( nDescLen > 0 ) {
 		file = FS_FileForHandle(descHandle);
 		Com_Memset( description, 0, descriptionLen );
 		nDescLen = fread(description, 1, descriptionLen, file);
 		if (nDescLen >= 0) {
 			description[nDescLen] = '\0';
 		}
-		FS_FCloseFile(descHandle);
 	} else {
 		Q_strncpyz( description, modDir, descriptionLen );
+	}
+
+	if ( descHandle ) {
+		FS_FCloseFile( descHandle );
 	}
 }
 
@@ -3069,6 +3072,23 @@ qboolean FS_CheckDirTraversal(const char *checkdir)
 
 /*
 ================
+FS_InvalidGameDir
+
+return true if path is a reference to current directory or directory traversal
+or a sub-directory
+================
+*/
+qboolean FS_InvalidGameDir( const char *gamedir ) {
+	if ( !strcmp( gamedir, "." ) || !strcmp( gamedir, ".." )
+		|| strchr( gamedir, '/' ) || strchr( gamedir, '\\' ) ) {
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+/*
+================
 FS_ComparePaks
 
 ----------------
@@ -3309,6 +3329,27 @@ static void FS_Startup( const char *gameName )
 	fs_homepath = Cvar_Get ("fs_homepath", homePath, CVAR_INIT|CVAR_PROTECTED );
 	fs_gamedirvar = Cvar_Get ("fs_game", "", CVAR_INIT|CVAR_SYSTEMINFO );
 
+	if (!gameName[0]) {
+		Cvar_ForceReset( "com_basegame" );
+	}
+
+	if (!FS_FilenameCompare(fs_gamedirvar->string, gameName)) {
+		// This is the standard base game. Servers and clients should
+		// use "" and not the standard basegame name because this messes
+		// up pak file negotiation and lots of other stuff
+		Cvar_ForceReset( "fs_game" );
+	}
+
+	if (FS_InvalidGameDir(gameName)) {
+		Com_Error( ERR_DROP, "Invalid com_basegame '%s'", gameName );
+	}
+	if (FS_InvalidGameDir(fs_basegame->string)) {
+		Com_Error( ERR_DROP, "Invalid fs_basegame '%s'", fs_basegame->string );
+	}
+	if (FS_InvalidGameDir(fs_gamedirvar->string)) {
+		Com_Error( ERR_DROP, "Invalid fs_game '%s'", fs_gamedirvar->string );
+	}
+
 	// add search path elements in reverse priority order
 	fs_gogpath = Cvar_Get ("fs_gogpath", Sys_GogPath(), CVAR_INIT|CVAR_PROTECTED );
 	if (fs_gogpath->string[0]) {
@@ -3369,14 +3410,10 @@ static void FS_Startup( const char *gameName )
 	}
 
 #ifndef STANDALONE
-	if(!com_standalone->integer)
-	{
-		cvar_t	*fs;
-
+	if (!com_standalone->integer) {
 		Com_ReadCDKey(BASEGAME);
-		fs = Cvar_Get ("fs_game", "", CVAR_INIT|CVAR_SYSTEMINFO );
-		if (fs && fs->string[0] != 0) {
-			Com_AppendCDKey( fs->string );
+		if (fs_gamedirvar->string[0]) {
+			Com_AppendCDKey(fs_gamedirvar->string);
 		}
 	}
 #endif
@@ -3424,17 +3461,17 @@ static void FS_CheckPak0( void )
 {
 	searchpath_t	*path;
 	pack_t		*curpack;
+	const char	*pakBasename;
 	qboolean founddemo = qfalse;
 	unsigned int foundPak = 0, foundTA = 0;
 
 	for( path = fs_searchpaths; path; path = path->next )
 	{
-		const char* pakBasename = path->pack->pakBasename;
-
 		if(!path->pack)
 			continue;
 
 		curpack = path->pack;
+		pakBasename = curpack->pakBasename;
 
 		if(!Q_stricmpn( curpack->pakGamename, "demoq3", MAX_OSPATH )
 				&& !Q_stricmpn( pakBasename, "pak0", MAX_OSPATH ))

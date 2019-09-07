@@ -160,6 +160,7 @@ typedef int intptr_t;
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
@@ -176,13 +177,15 @@ typedef int intptr_t;
   typedef unsigned __int32 uint32_t;
   typedef unsigned __int16 uint16_t;
   typedef unsigned __int8 uint8_t;
+#else
+  #include <stdint.h>
+#endif
 
+#ifdef _WIN32
   // vsnprintf is ISO/IEC 9899:1999
   // abstracting this to make it portable
   int Q_vsnprintf(char *str, size_t size, const char *format, va_list ap);
 #else
-  #include <stdint.h>
-
   #define Q_vsnprintf vsnprintf
 #endif
 
@@ -365,6 +368,8 @@ typedef vec_t vec3_t[3];
 typedef vec_t vec4_t[4];
 typedef vec_t vec5_t[5];
 
+typedef vec_t quat_t[4];
+
 typedef	int	fixed4_t;
 typedef	int	fixed8_t;
 typedef	int	fixed16_t;
@@ -406,7 +411,7 @@ extern	vec4_t		colorMdGrey;
 extern	vec4_t		colorDkGrey;
 
 #define Q_COLOR_ESCAPE	'^'
-#define Q_IsColorString(p)	((p) && *(p) == Q_COLOR_ESCAPE && *((p)+1) && isalnum(*((p)+1))) // ^[0-9a-zA-Z]
+qboolean Q_IsColorString(const char *p);  // ^[0-9a-zA-Z]
 
 #define COLOR_BLACK	'0'
 #define COLOR_RED	'1'
@@ -574,6 +579,8 @@ typedef struct {
 #define Vector4Copy(a,b)		((b)[0]=(a)[0],(b)[1]=(a)[1],(b)[2]=(a)[2],(b)[3]=(a)[3])
 
 #define Byte4Copy(a,b)			((b)[0]=(a)[0],(b)[1]=(a)[1],(b)[2]=(a)[2],(b)[3]=(a)[3])
+
+#define QuatCopy(a,b)			((b)[0]=(a)[0],(b)[1]=(a)[1],(b)[2]=(a)[2],(b)[3]=(a)[3])
 
 #define	SnapVector(v) {v[0]=((int)(v[0]));v[1]=((int)(v[1]));v[2]=((int)(v[2]));}
 // just in case you don't want to use the macros
